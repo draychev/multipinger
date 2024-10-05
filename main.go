@@ -18,12 +18,13 @@ type Result struct {
 }
 
 func main() {
-	// Define a string slice to hold IP addresses or FQDNs
 	addresses := flag.String("addresses", "", "Comma-separated list of IP addresses or FQDNs")
 	pingCount := flag.Int("count", 3, "How many times to ping each address")
 
 	// Parse the command-line flags
 	flag.Parse()
+
+	printIdentity()
 
 	// Split the addresses by comma
 	addrList := strings.Split(*addresses, ",")
@@ -89,5 +90,25 @@ func printAverages(all map[Address][]time.Duration) {
 		}
 		average := sum / time.Duration(len(durations))
 		fmt.Printf("Address: %s Average Duration: %v\n", addr, average)
+	}
+}
+
+func printIdentity() {
+	fmt.Println("Fetching external IP and reverse DNS...")
+
+	ipCmd := exec.Command("curl", "-s", "ifconfig.me")
+	externalIP, err := ipCmd.Output()
+	if err != nil {
+		fmt.Printf("Failed to get external IP: %v\n", err)
+	} else {
+		fmt.Printf("External IP: %s\n", externalIP)
+	}
+
+	reverseCmd := exec.Command("curl", "-s", "ifconfig.me/host")
+	reverseDNS, err := reverseCmd.Output()
+	if err != nil {
+		fmt.Printf("Failed to get reverse DNS: %v\n", err)
+	} else {
+		fmt.Printf("Reverse DNS: %s\n", reverseDNS)
 	}
 }
