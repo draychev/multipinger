@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -8,7 +10,9 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,81 +22,76 @@ var wg sync.WaitGroup
 
 type Address string
 type ifconfig struct {
-	IPAddr     string `json:"ip_addr"`
-	RemoteHost string `json:"remote_host"`
-	UserAgent  string `json:"user_agent"`
-	Port       string `json:"port"`
-	Language   string `json:"language"`
-	Method     string `json:"method"`
-	Encoding   string `json:"encoding"`
-	MIME       string `json:"mime"`
-	Via        string `json:"via"`
-	Forwarded  string `json:"forwarded"`
+	IPAddr string `json:"ip_addr"`
 }
 
 type Result struct {
 	Addr Address
-	Time time.Duration
+	RTT  time.Duration
 }
 
 func main() {
 	addresses := flag.String("addresses", "", "Comma-separated list of IP addresses or FQDNs")
 	pingCount := flag.Int("count", 3, "How many times to ping each address")
-
-	// Parse the command-line flags
 	flag.Parse()
 
 	printIdentity()
 
 	addrList := strings.Split(*addresses, ",")
-	fmt.Printf("  Will ping each one of %+v %d times\n", addrList, *pingCount)
+	fmt.Printf("  Will ping each one of %s %d times\n", strings.Join(addrList, ", "), *pingCount)
 
 	resultChan := make(chan Result)
 	all := make(map[Address][]time.Duration)
 
 	go func() {
 		for {
-			res, ok := <-resultChan
-			if !ok {
-				// fmt.Printf(">>> done <<<\n")
-				break
-			}
-			// fmt.Printf("Received result: %+v\n", res)
-			addr := res.Addr
-			all[addr] = append(all[addr], res.Time)
+			res := <-resultChan
+			all[res.Addr] = append(all[res.Addr], res.RTT)
 		}
 	}()
 
-	// Print each address
 	for _, address := range addrList {
 		wg.Add(1)
 		go ping(address, *pingCount, resultChan, &wg)
 	}
 
 	wg.Wait()
-
 	printAverages(all)
-
-	// fmt.Printf("Here is the collection: %+v\n", all)
 }
 
 func ping(address string, pingCount int, resChan chan<- Result, wg *sync.WaitGroup) {
-	counter := 1
-	for counter <= pingCount {
-		// fmt.Printf("%d: Pinging %s\n", counter, address)
-		start := time.Now()
-		cmd := exec.Command("ping", "-c 1", address)
-		err := cmd.Run()
-		if err != nil {
+	defer wg.Done()
+
+	// Regular expression to extract the time from ping output (e.g., "time=20.1 ms")
+	timeRegex := regexp.MustCompile(`time=([\d.]+) ms`)
+
+	for i := 1; i <= pingCount; i++ {
+		cmd := exec.Command("ping", "-c", "1", address)
+
+		var out bytes.Buffer
+		cmd.Stdout = &out
+
+		if err := cmd.Run(); err != nil {
 			fmt.Printf("Failed to ping %s: %v\n", address, err)
-			// resChan <- Result{Address(address), -1}
-		} else {
-			duration := time.Since(start)
-			resChan <- Result{Address(address), duration}
+			break
 		}
-		counter += 1
+
+		scanner := bufio.NewScanner(strings.NewReader(out.String()))
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Match the time in the ping output
+			if matches := timeRegex.FindStringSubmatch(line); matches != nil {
+				rtt, err := strconv.ParseFloat(matches[1], 64)
+				if err == nil {
+					resChan <- Result{Addr: Address(address), RTT: time.Duration(rtt) * time.Millisecond}
+				}
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			fmt.Printf("Error reading ping output: %v\n", err)
+		}
 	}
-	wg.Done()
 }
 
 func printAverages(all map[Address][]time.Duration) {
