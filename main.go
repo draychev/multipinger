@@ -36,7 +36,7 @@ type Result struct {
 }
 
 func main() {
-	addresses := flag.String("addresses", "", "Comma-separated list of IP addresses or FQDNs")
+	addresses := flag.String("addresses", "8.8.8.8,mirrors.fcix.net,mirrors.kernel.org,1.1.1.1,sz.inetg.bg,mak.ac.ug", "Comma-separated list of IP addresses or FQDNs")
 	pingCount := flag.Int("count", 3, "How many times to ping each address")
 
 	// Parse the command-line flags
@@ -44,12 +44,7 @@ func main() {
 
 	printIdentity()
 
-	// Split the addresses by comma
 	addrList := strings.Split(*addresses, ",")
-	if addrList == nil || len(addrList) <= 0 || addrList[0] == "" {
-		fmt.Printf("--addresses is empty\n")
-		return
-	}
 	fmt.Printf("  Will ping each one of %+v %d times\n", addrList, *pingCount)
 
 	resultChan := make(chan Result)
