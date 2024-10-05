@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -100,14 +101,37 @@ func ping(address string, pingCount int, resChan chan<- Result, wg *sync.WaitGro
 }
 
 func printAverages(all map[Address][]time.Duration) {
+	type averageResult struct {
+		Addr    Address
+		Average time.Duration
+	}
+
+	averages := []averageResult{}
+
 	for addr, durations := range all {
 		var sum time.Duration
 		for _, duration := range durations {
 			sum += duration
 		}
 		average := sum / time.Duration(len(durations))
-		fmt.Printf("    - %s: %v\n", addr, average)
+		averages = append(averages, averageResult{addr, average})
 	}
+
+	sort.Slice(averages, func(i, j int) bool {
+		return averages[i].Average < averages[j].Average
+	})
+
+	var slowest *averageResult
+	for _, res := range averages {
+		fmt.Printf("    - %s: %v\n", res.Addr, res.Average)
+		slowest = &res
+	}
+
+	fmt.Printf("Slowest: %+v", *slowest)
+	traceRoute(slowest.Addr)
+}
+
+func traceRoute(ip Address) {
 }
 
 func printIdentity() {
