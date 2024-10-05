@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -39,10 +40,10 @@ func main() {
 		for {
 			res, ok := <-resultChan
 			if !ok {
-				fmt.Printf(">>> done <<<\n")
+				// fmt.Printf(">>> done <<<\n")
 				break
 			}
-			fmt.Printf("Received result: %+v\n", res)
+			// fmt.Printf("Received result: %+v\n", res)
 			addr := res.Addr
 			all[addr] = append(all[addr], res.Time)
 		}
@@ -56,15 +57,37 @@ func main() {
 
 	wg.Wait()
 
-	fmt.Printf("Here is the collection: %+v\n", all)
+	printAverages(all)
+
+	// fmt.Printf("Here is the collection: %+v\n", all)
 }
 
 func ping(address string, pingCount int, resChan chan<- Result, wg *sync.WaitGroup) {
 	counter := 1
 	for counter <= pingCount {
 		fmt.Printf("%d: Pinging %s\n", counter, address)
-		resChan <- Result{Address(address), 789}
+		start := time.Now()
+		cmd := exec.Command("ping", "-c 1", address)
+		err := cmd.Run()
+		if err != nil {
+			fmt.Printf("Failed to ping %s: %v\n", address, err)
+			resChan <- Result{Address(address), -1}
+		} else {
+			duration := time.Since(start)
+			resChan <- Result{Address(address), duration}
+		}
 		counter += 1
 	}
 	wg.Done()
+}
+
+func printAverages(all map[Address][]time.Duration) {
+	for addr, durations := range all {
+		var sum time.Duration
+		for _, duration := range durations {
+			sum += duration
+		}
+		average := sum / time.Duration(len(durations))
+		fmt.Printf("Address: %s Average Duration: %v\n", addr, average)
+	}
 }
