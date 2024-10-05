@@ -129,7 +129,7 @@ func printAverages(all map[Address][]time.Duration) {
 }
 
 func traceRoute(addr Address) {
-	cmd := exec.Command("traceroute", string(addr))
+	cmd := exec.Command("sh", "-c", "traceroute "+string(addr)+" | awk 'NR>1 {print $2}' | grep -v '*' | grep -v '^$' | uniq")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Failed to traceroute %s: %v\n", addr, err)
