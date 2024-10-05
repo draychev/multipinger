@@ -36,7 +36,7 @@ type Result struct {
 }
 
 func main() {
-	addresses := flag.String("addresses", "8.8.8.8,mirrors.fcix.net,mirrors.kernel.org,1.1.1.1,sz.inetg.bg,mak.ac.ug", "Comma-separated list of IP addresses or FQDNs")
+	addresses := flag.String("addresses", "", "Comma-separated list of IP addresses or FQDNs")
 	pingCount := flag.Int("count", 3, "How many times to ping each address")
 
 	// Parse the command-line flags
@@ -85,7 +85,7 @@ func ping(address string, pingCount int, resChan chan<- Result, wg *sync.WaitGro
 		err := cmd.Run()
 		if err != nil {
 			fmt.Printf("Failed to ping %s: %v\n", address, err)
-			resChan <- Result{Address(address), -1}
+			// resChan <- Result{Address(address), -1}
 		} else {
 			duration := time.Since(start)
 			resChan <- Result{Address(address), duration}
@@ -116,14 +116,16 @@ func printAverages(all map[Address][]time.Duration) {
 		return averages[i].Average < averages[j].Average
 	})
 
-	var slowest *averageResult
+	slowest := make([]*averageResult, 2)
 	for _, res := range averages {
 		fmt.Printf("    - %s: %v\n", res.Addr, res.Average)
-		slowest = &res
+		slowest[1] = slowest[0]
+		slowest[0] = &res
 	}
 
-	fmt.Printf("Slowest: %s - %d", slowest.Addr, slowest.Average)
-	traceRoute(slowest.Addr)
+	fmt.Printf("\n  Slowest: %s - %+v", slowest[0].Addr, slowest[0].Average)
+	traceRoute(slowest[0].Addr)
+	traceRoute(slowest[1].Addr)
 }
 
 func traceRoute(addr Address) {
@@ -133,7 +135,7 @@ func traceRoute(addr Address) {
 		fmt.Printf("Failed to traceroute %s: %v\n", addr, err)
 		return
 	}
-	fmt.Printf("Traceroute to %s:\n%s\n", addr, string(output))
+	fmt.Printf("\n=========\n  Traceroute to %s:\n%s\n", addr, string(output))
 }
 
 func printIdentity() {
