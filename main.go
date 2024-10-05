@@ -127,11 +127,18 @@ func printAverages(all map[Address][]time.Duration) {
 		slowest = &res
 	}
 
-	fmt.Printf("Slowest: %+v", *slowest)
+	fmt.Printf("Slowest: %s - %d", slowest.Addr, slowest.Average)
 	traceRoute(slowest.Addr)
 }
 
-func traceRoute(ip Address) {
+func traceRoute(addr Address) {
+	cmd := exec.Command("traceroute", string(addr))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Failed to traceroute %s: %v\n", addr, err)
+		return
+	}
+	fmt.Printf("Traceroute to %s:\n%s\n", addr, string(output))
 }
 
 func printIdentity() {
