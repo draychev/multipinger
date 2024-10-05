@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os/exec"
 	"strings"
 	"sync"
@@ -12,6 +15,19 @@ import (
 var wg sync.WaitGroup
 
 type Address string
+type ifconfig struct {
+	IPAddr     string `json:"ip_addr"`
+	RemoteHost string `json:"remote_host"`
+	UserAgent  string `json:"user_agent"`
+	Port       string `json:"port"`
+	Language   string `json:"language"`
+	Method     string `json:"method"`
+	Encoding   string `json:"encoding"`
+	MIME       string `json:"mime"`
+	Via        string `json:"via"`
+	Forwarded  string `json:"forwarded"`
+}
+
 type Result struct {
 	Addr Address
 	Time time.Duration
@@ -96,19 +112,23 @@ func printAverages(all map[Address][]time.Duration) {
 func printIdentity() {
 	fmt.Println("Fetching external IP and reverse DNS...")
 
-	ipCmd := exec.Command("curl", "-s", "ifconfig.me")
-	externalIP, err := ipCmd.Output()
+	client := &http.Client{}
+
+	// Get external IP
+	resp, err := client.Get("http://ifconfig.me")
 	if err != nil {
 		fmt.Printf("Failed to get external IP: %v\n", err)
 	} else {
-		fmt.Printf("External IP: %s\n", externalIP)
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("External IP: %s\n", body)
 	}
 
-	reverseCmd := exec.Command("curl", "-s", "ifconfig.me/host")
-	reverseDNS, err := reverseCmd.Output()
+	ip := "8.8.8.8"
+	names, err := net.LookupAddr(ip)
 	if err != nil {
-		fmt.Printf("Failed to get reverse DNS: %v\n", err)
-	} else {
-		fmt.Printf("Reverse DNS: %s\n", reverseDNS)
+		fmt.Println("Error:", err)
+		return
 	}
+
 }
