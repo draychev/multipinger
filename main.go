@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -110,25 +111,84 @@ func printAverages(all map[Address][]time.Duration) {
 }
 
 func printIdentity() {
-	client := &http.Client{}
 
-	// Get external IP
-	resp, err := client.Get("http://ifconfig.me/all.json")
-	if err != nil {
-		fmt.Printf("Failed to get external IP: %v\n", err)
-	} else {
-		defer resp.Body.Close()
-		var result ifconfig
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			fmt.Printf("Failed to parse JSON: %v\n", err)
+	// IPv4
+	{
+
+		// Custom Dialer to force IPv4
+		dialer := &net.Dialer{
+			Resolver: &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, "tcp4", address)
+				},
+			},
+		}
+
+		// Custom Transport using the Dialer
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext: dialer.DialContext,
+			},
+		}
+		// Get external IP
+		// Fetch IPv4 details
+		resp4, err4 := client.Get("http://ifconfig.me/all.json")
+		if err4 != nil {
+			fmt.Printf("Failed to get IPv4 external IP: %v\n", err4)
 		} else {
-			names, err := net.LookupAddr(result.IPAddr)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
+			defer resp4.Body.Close()
+			var result4 ifconfig
+			if err := json.NewDecoder(resp4.Body).Decode(&result4); err != nil {
+				fmt.Printf("Failed to parse JSON for IPv4: %v\n", err)
+			} else {
+				// fmt.Printf("Fetched IPv4 details: %s\n", result4.IPAddr)
+				getYou(result4.IPAddr)
 			}
-			fmt.Printf("You are %s --> %s\n", names[0], result.IPAddr)
 		}
 	}
 
+	// IPv6
+	{
+		// Custom Dialer to force IPv6
+		dialer := &net.Dialer{
+			Resolver: &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, "tcp6", address)
+				},
+			},
+		}
+
+		// Custom Transport using the Dialer
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext: dialer.DialContext,
+			},
+		}
+		// Fetch IPv6 details
+		resp6, err6 := client.Get("http://ifconfig.me/all.json")
+		if err6 != nil {
+			fmt.Printf("Failed to get IPv6 external IP: %v\n", err6)
+		} else {
+			defer resp6.Body.Close()
+			var result6 ifconfig
+			if err := json.NewDecoder(resp6.Body).Decode(&result6); err != nil {
+				fmt.Printf("Failed to parse JSON for IPv6: %v\n", err)
+			} else {
+				// fmt.Printf("Fetched IPv6 details: %s\n", result6.IPAddr)
+				getYou(result6.IPAddr)
+			}
+		}
+	}
+
+}
+
+func getYou(ip string) {
+	names, err := net.LookupAddr(ip)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	fmt.Printf("You are %s --> %s\n", names[0], ip)
 }
