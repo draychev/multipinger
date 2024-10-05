@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os/exec"
@@ -48,7 +48,7 @@ func main() {
 		fmt.Printf("--addresses is empty\n")
 		return
 	}
-	fmt.Printf("Will ping %+v %d times\n", addrList, *pingCount)
+	fmt.Printf("  Will ping each one of %+v %d times\n", addrList, *pingCount)
 
 	resultChan := make(chan Result)
 	all := make(map[Address][]time.Duration)
@@ -82,7 +82,7 @@ func main() {
 func ping(address string, pingCount int, resChan chan<- Result, wg *sync.WaitGroup) {
 	counter := 1
 	for counter <= pingCount {
-		fmt.Printf("%d: Pinging %s\n", counter, address)
+		// fmt.Printf("%d: Pinging %s\n", counter, address)
 		start := time.Now()
 		cmd := exec.Command("ping", "-c 1", address)
 		err := cmd.Run()
@@ -105,30 +105,30 @@ func printAverages(all map[Address][]time.Duration) {
 			sum += duration
 		}
 		average := sum / time.Duration(len(durations))
-		fmt.Printf("Address: %s Average Duration: %v\n", addr, average)
+		fmt.Printf("    - %s: %v\n", addr, average)
 	}
 }
 
 func printIdentity() {
-	fmt.Println("Fetching external IP and reverse DNS...")
-
 	client := &http.Client{}
 
 	// Get external IP
-	resp, err := client.Get("http://ifconfig.me")
+	resp, err := client.Get("http://ifconfig.me/all.json")
 	if err != nil {
 		fmt.Printf("Failed to get external IP: %v\n", err)
 	} else {
 		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Printf("External IP: %s\n", body)
-	}
-
-	ip := "8.8.8.8"
-	names, err := net.LookupAddr(ip)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		var result ifconfig
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			fmt.Printf("Failed to parse JSON: %v\n", err)
+		} else {
+			names, err := net.LookupAddr(result.IPAddr)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+			fmt.Printf("You are %s --> %s\n", names[0], result.IPAddr)
+		}
 	}
 
 }
