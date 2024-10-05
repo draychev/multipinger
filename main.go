@@ -79,11 +79,15 @@ func ping(address string, pingCount int, resChan chan<- Result, wg *sync.WaitGro
 		scanner := bufio.NewScanner(strings.NewReader(out.String()))
 		for scanner.Scan() {
 			line := scanner.Text()
-			// Match the time in the ping output
 			if matches := timeRegex.FindStringSubmatch(line); matches != nil {
 				rtt, err := strconv.ParseFloat(matches[1], 64)
-				if err == nil {
-					resChan <- Result{Addr: Address(address), RTT: time.Duration(rtt) * time.Millisecond}
+				if err != nil {
+					fmt.Printf("Error: %+v", err)
+					break
+				}
+				resChan <- Result{
+					Addr: Address(address),
+					RTT:  time.Duration(rtt) * time.Millisecond,
 				}
 			}
 		}
@@ -117,7 +121,8 @@ func printAverages(all map[Address][]time.Duration) {
 
 	slowest := make([]*averageResult, 2)
 	for _, res := range averages {
-		fmt.Printf("    - %s: %v\n", res.Addr, res.Average)
+		avg := res.Average.Milliseconds()
+		fmt.Printf("    - %s: %dms\n", res.Addr, avg)
 		slowest[1] = slowest[0]
 		slowest[0] = &res
 	}
